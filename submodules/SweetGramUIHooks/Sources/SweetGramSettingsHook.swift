@@ -291,7 +291,11 @@ public func sweetGramLLMSettingsController(context: AccountContext) -> ViewContr
             presentControllerImpl?(picker, ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
         },
         runTest: {
-            LLMSettingsPresenter.shared.runConnectivityTest(from: hostController)
+            LLMSettingsPresenter.shared.testConnectivity { title, message in
+                    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: "OK", style: .default))
+                    hostController?.present(alert, animated: true)
+                }
         },
         configureAgent: {
             promptAgentPort(context: context, hostController: hostController) {
