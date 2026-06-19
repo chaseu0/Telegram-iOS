@@ -9,9 +9,5 @@ swift_library(
     deps = [
         "//submodules/SweetGramCore:SweetGramCore",
     ],
-    sdk_frameworks = [
-        "Foundation",
-        "Network",
-    ],
     visibility = ["//visibility:public"],
 )

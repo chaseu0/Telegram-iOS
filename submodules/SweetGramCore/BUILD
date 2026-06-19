@@ -6,9 +6,5 @@ swift_library(
     srcs = glob([
         "Sources/**/*.swift",
     ]),
-    sdk_frameworks = [
-        "Foundation",
-        "Security",
-    ],
     visibility = ["//visibility:public"],
 )
