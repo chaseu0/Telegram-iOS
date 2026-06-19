@@ -2084,7 +2084,7 @@ ios_ui_test_suite(
         ":iPhone-17__26.2",
     ],
     tags = ["manual"],
-    test_host = "//Telegram",
+    test_host = "//Telegram:Swiftgram",
     visibility = ["@rules_xcodeproj//xcodeproj:generated"],
     deps = [":iOSAppUITestSuite.library"],
 )
