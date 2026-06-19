@@ -16,17 +16,21 @@ permissions:
 
 env:
   BAZEL_CACHE_DIR: /Users/Shared/bazel-cache
+  # Stable toolchain fingerprint — only invalidates disk cache when
+  # Xcode or Bazel version changes. Bazel's own content-addressed
+  # disk cache handles per-file incrementality internally.
+  CACHE_VERSION: v1
 
 jobs:
-  validate:
+  build:
     runs-on: macos-26
-    timeout-minutes: 15
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Install build dependencies
         run: |
@@ -48,6 +52,24 @@ jobs:
           done
           xcodebuild -version
 
+      # Bazel disk cache is content-addressed: cache hits depend only on
+      # the hash of each action's inputs, not on our cache key. We use a
+      # stable key here so every push reuses the same cache slot, and Bazel
+      # decides what to rebuild internally based on changed file digests.
+      - name: Restore/Save Bazel disk cache
+        uses: actions/cache@v4
+        id: cache-bazel
+        with:
+          path: ${{ env.BAZEL_CACHE_DIR }}
+          key: bazel-disk-cache-macos26-xcode262-${{ env.CACHE_VERSION }}
+          save-always: true
+
+      - name: Prepare cache + source directories
+        run: |
+          set -euo pipefail
+          sudo mkdir -p ${{ env.BAZEL_CACHE_DIR }}
+          sudo chown -R $USER:staff ${{ env.BAZEL_CACHE_DIR }}
+
       - name: Validate SweetGram AI modules
         run: |
           set -euo pipefail
@@ -55,75 +77,12 @@ jobs:
             test -f "submodules/${mod}/BUILD" || { echo "Missing ${mod}/BUILD"; exit 1; }
           done
           test -f Swiftgram/SweetGramTelegramUIHooks/BUILD
-          python3 build-system/Make/Make.py \
-            --bazelUserRoot="/private/var/tmp/_bazel_containerhost" \
-            --cacheDir="$HOME/telegram-bazel-cache" \
-            --overrideXcodeVersion \
-            --overrideBazelVersion \
-            query \
-            --configurationPath="build-system/appstore-configuration.json" \
-            --codesigningInformationPath=build-system/fake-codesigning \
-            --queryArgs="//submodules/SweetGramAI:SweetGramAI"
-          echo "SweetGram AI targets OK"
-
-  build:
-    needs: validate
-    runs-on: macos-26
-    timeout-minutes: 180
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Install build dependencies
-        run: |
-          set -euo pipefail
-          brew install yasm cmake || true
-
-      - name: Select Xcode
-        run: |
-          set -euo pipefail
-          XCODE_VERSION=$(python3 -c 'import json; print(json.load(open("versions.json"))["xcode"])')
-          for candidate in \
-            "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer" \
-            "/Applications/Xcode_${XCODE_VERSION}.0.app/Contents/Developer" \
-            "/Applications/Xcode.app/Contents/Developer"; do
-            if [ -d "$candidate" ]; then
-              sudo xcode-select -s "$candidate"; break
-            fi
-          done
-          xcodebuild -version
-
-      - name: Restore Bazel cache
-        id: cache-bazel
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.BAZEL_CACHE_DIR }}
-          key: bazel-cache-${{ github.ref_name }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'Telegram/BUILD', 'versions.json') }}
-          restore-keys: |
-            bazel-cache-${{ github.ref_name }}-
-            bazel-cache-master-
-            bazel-cache-
-
-      - name: Create canonical source directory
-        run: |
-          set -euo pipefail
-          sudo mkdir -p /Users/Shared
-          sudo mkdir -p ${{ env.BAZEL_CACHE_DIR }}
-          sudo chown -R $USER:staff ${{ env.BAZEL_CACHE_DIR }}
-          rm -rf /Users/Shared/telegram-ios
-          cp -R "$GITHUB_WORKSPACE" /Users/Shared/telegram-ios
+          echo "All SweetGram AI modules present"
 
       - name: Build unsigned IPA with dSYMs
         id: build
         run: |
           set -euo pipefail
-
-          SOURCE_DIR=/Users/Shared/telegram-ios
-          BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
-          cd "$SOURCE_DIR"
 
           BUILD_NUMBER_OFFSET="$(tr -d '\r\n' < build_number_offset)"
           APP_VERSION=$(python3 -c 'import json; print(json.load(open("versions.json"))["app"])')
@@ -131,11 +90,11 @@ jobs:
           BUILD_NUMBER=$((COMMIT_COUNT + BUILD_NUMBER_OFFSET))
           echo "BUILD_NUMBER=${BUILD_NUMBER}" >> "$GITHUB_ENV"
           echo "APP_VERSION=${APP_VERSION}" >> "$GITHUB_ENV"
+          echo "Build number: $BUILD_NUMBER  App version: $APP_VERSION"
 
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
 
           python3 -u build-system/Make/Make.py \
-            --bazelUserRoot="$BAZEL_USER_ROOT" \
             --cacheDir="${{ env.BAZEL_CACHE_DIR }}" \
             --overrideXcodeVersion \
             --overrideBazelVersion \
@@ -147,15 +106,15 @@ jobs:
             --disableExtensions \
             --generateDsym
 
-          OUTPUT_PATH="$SOURCE_DIR/build/artifacts"
+          # Collect artifacts
+          OUTPUT_PATH="$GITHUB_WORKSPACE/build/artifacts"
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
 
-          # Collect IPA
-          IPA_SRC="$SOURCE_DIR/bazel-bin/Telegram/Swiftgram.ipa"
+          IPA_SRC="$GITHUB_WORKSPACE/bazel-bin/Telegram/Swiftgram.ipa"
           if [ ! -f "$IPA_SRC" ]; then
-            echo "No Swiftgram.ipa at $IPA_SRC; candidates:"
-            find "$SOURCE_DIR/bazel-bin" "$SOURCE_DIR/bazel-out" -name '*.ipa' -print 2>/dev/null || true
+            echo "No Swiftgram.ipa at $IPA_SRC; searching..."
+            find "$GITHUB_WORKSPACE/bazel-bin" "$GITHUB_WORKSPACE/bazel-out" -name '*.ipa' -print 2>/dev/null || true
             exit 1
           fi
           cp "$IPA_SRC" "$OUTPUT_PATH/SweetGram.ipa"
@@ -163,7 +122,7 @@ jobs:
 
           # Collect dSYMs
           mkdir -p "$OUTPUT_PATH/DSYMs"
-          for f in $(find "$SOURCE_DIR/bazel-out" -name '*.dSYM' -type d 2>/dev/null); do
+          for f in $(find "$GITHUB_WORKSPACE/bazel-out" -name '*.dSYM' -type d 2>/dev/null); do
             cp -R "$f" "$OUTPUT_PATH/DSYMs/" 2>/dev/null || true
           done
           if [ -d "$OUTPUT_PATH/DSYMs" ] && [ "$(ls -A "$OUTPUT_PATH/DSYMs" 2>/dev/null)" ]; then
@@ -176,18 +135,11 @@ jobs:
 
           ls -lah "$OUTPUT_PATH"
 
-      - name: Save Bazel cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.BAZEL_CACHE_DIR }}
-          key: bazel-cache-${{ github.ref_name }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'Telegram/BUILD', 'versions.json') }}
-
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: SweetGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
-          path: /Users/Shared/telegram-ios/build/artifacts/SweetGram.ipa
+          path: $GITHUB_WORKSPACE/build/artifacts/SweetGram.ipa
           if-no-files-found: error
           retention-days: 14
 
@@ -196,6 +148,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: SweetGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-dSYMs
-          path: /Users/Shared/telegram-ios/build/artifacts/SweetGram.dSYMs.zip
+          path: $GITHUB_WORKSPACE/build/artifacts/SweetGram.dSYMs.zip
           if-no-files-found: warn
           retention-days: 14
