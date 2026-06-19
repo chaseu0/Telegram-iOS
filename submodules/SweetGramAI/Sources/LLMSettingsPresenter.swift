@@ -1,8 +1,8 @@
 import Foundation
-import UIKit
 import SweetGramCore
 
-/// Settings UI for LLM profile/model selection (ItemListUI integration point).
+/// Settings data provider for LLM profile/model selection (ItemListUI integration point).
+/// UIKit-dependent presentation methods moved to SweetGramUIHooks.
 public final class LLMSettingsPresenter: NSObject {
     public static let shared = LLMSettingsPresenter()
 
@@ -102,9 +102,10 @@ public final class LLMSettingsPresenter: NSObject {
         LLMProfileManager.shared.selectProfile(id: profile.id)
     }
 
-    public func runConnectivityTest(from viewController: UIViewController?) {
+    /// Returns (title, message) for connectivity test. Caller presents UI.
+    public func testConnectivity(completion: @escaping (String, String) -> Void) {
         guard let profile = activeProfile() else {
-            presentAlert(on: viewController, title: "LLM 连接失败", message: "No profile configured. Add base URL, API key, and model.")
+            completion("LLM 连接失败", "No profile configured. Add base URL, API key, and model.")
             return
         }
 
@@ -116,21 +117,13 @@ public final class LLMSettingsPresenter: NSObject {
         )
 
         LLMClient.shared.complete(request: request, profile: profile) { result in
-            DispatchQueue.main.async {
-                switch result {
-                case let .success(response):
-                    self.presentAlert(on: viewController, title: "LLM 连接成功", message: response.text)
-                case let .failure(error):
-                    self.presentAlert(on: viewController, title: "LLM 连接失败", message: error.localizedDescription)
-                }
+            switch result {
+            case let .success(response):
+                completion("LLM 连接成功", response.text)
+            case let .failure(error):
+                completion("LLM 连接失败", error.localizedDescription)
             }
         }
-    }
-
-    private func presentAlert(on viewController: UIViewController?, title: String, message: String) {
-        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        viewController?.present(alert, animated: true)
     }
 }
 
