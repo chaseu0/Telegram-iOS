@@ -22,7 +22,7 @@ enum SweetGramMessagePipelineHook {
             (previous?.filteredEntries ?? [])
                 .compactMap { message(from: $0)?.id }
         )
-        let chatPeerId = chatLocation.peerId ?? message(from: current.filteredEntries.first)?.id.peerId
+        let chatPeerId = chatLocation.peerId ?? current.filteredEntries.first.flatMap { message(from: $0) }?.id.peerId
 
         for entry in current.filteredEntries {
             guard let message = message(from: entry) else { continue }
@@ -32,7 +32,7 @@ enum SweetGramMessagePipelineHook {
 
             let peerId = chatPeerId ?? message.id.peerId
             let deepLink = "\(urlScheme)://chat?peer=\(peerId.toInt64())&message=\(message.id.id)"
-            let senderName = message.author?.compactDisplayTitle ?? "Unknown"
+            let senderName = message.author.flatMap { EnginePeer($0).compactDisplayTitle } ?? "Unknown"
 
             SweetGramIntegration.onIncomingMessage(
                 chatId: peerId.toInt64(),
