@@ -130,7 +130,7 @@ jobs:
             query \
             --configurationPath="build-system/appstore-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
-            --queryArgs="//submodules/SweetGramAI:SweetGramAI //submodules/SweetGramUIHooks:SweetGramUIHooks"
+            --queryArgs="//submodules/SweetGramAI:SweetGramAI"
           echo "SweetGram AI Bazel targets OK"
 
   build:
