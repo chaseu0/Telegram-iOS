@@ -1,4 +1,5 @@
 import Foundation
+import SweetGramCore
 
 public struct ChatSummaryInput: Equatable {
     public let chatTitle: String

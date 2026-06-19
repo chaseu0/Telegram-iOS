@@ -1,4 +1,5 @@
 import Foundation
+import SweetGramCore
 
 public enum MessageContextLimit: Int, CaseIterable {
     case hundred = 100

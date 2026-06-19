@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import SweetGramCore
 
 public struct AgentMessageDTO: Codable, Equatable {
     public let id: Int32

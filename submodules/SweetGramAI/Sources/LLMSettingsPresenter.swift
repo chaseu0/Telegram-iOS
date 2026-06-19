@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import SweetGramCore
 
 /// Settings UI for LLM profile/model selection (ItemListUI integration point).
 public final class LLMSettingsPresenter: NSObject {
