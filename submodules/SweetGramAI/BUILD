@@ -32,5 +32,8 @@ swift_library(
         "//submodules/SweetGramCore:SweetGramCore",
         ":SweetGramSQLite",
     ],
+    sdk_frameworks = [
+        "UIKit",
+    ],
     visibility = ["//visibility:public"],
 )
