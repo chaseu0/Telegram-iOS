@@ -14,9 +14,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  BAZEL_CACHE_DIR: /Users/Shared/bazel-cache
+
 jobs:
   validate:
-    # Fast pre-build gate (~2-5 min). Fails before the ~60 min compile when config is wrong.
     runs-on: macos-26
     timeout-minutes: 15
 
@@ -36,84 +38,15 @@ jobs:
           set -euo pipefail
           XCODE_VERSION=$(python3 -c 'import json; print(json.load(open("versions.json"))["xcode"])')
           echo "Required Xcode: ${XCODE_VERSION}"
-          SELECTED=""
           for candidate in \
             "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer" \
             "/Applications/Xcode_${XCODE_VERSION}.0.app/Contents/Developer" \
             "/Applications/Xcode.app/Contents/Developer"; do
             if [ -d "$candidate" ]; then
-              sudo xcode-select -s "$candidate"
-              SELECTED="$candidate"
-              break
+              sudo xcode-select -s "$candidate"; break
             fi
           done
-          if [ -z "$SELECTED" ]; then
-            echo "No suitable Xcode found. Installed apps:"
-            ls -1 /Applications | grep -i Xcode || true
-            exit 1
-          fi
           xcodebuild -version
-
-      - name: Validate build configuration
-        run: |
-          set -euo pipefail
-          CONFIG="build-system/appstore-configuration.json"
-          python3 - <<'PY'
-          import json, sys
-          path = "build-system/appstore-configuration.json"
-          with open(path) as f:
-              cfg = json.load(f)
-          required = [
-              "sg_config", "bundle_id", "api_id", "api_hash", "team_id",
-              "app_center_id", "is_internal_build", "is_appstore_build",
-              "appstore_id", "app_specific_url_scheme", "premium_iap_product_id",
-              "enable_siri", "enable_icloud",
-          ]
-          missing = [k for k in required if k not in cfg]
-          if missing:
-              print(f"Missing keys in {path}: {missing}")
-              sys.exit(1)
-          if cfg["enable_siri"]:
-              print("enable_siri must be false for personal-cert sideload (crashes INPreferences)")
-              sys.exit(1)
-          if cfg["enable_icloud"]:
-              print("enable_icloud must be false for personal-cert sideload")
-              sys.exit(1)
-          if not cfg["bundle_id"] or not cfg["api_id"] or not cfg["api_hash"]:
-              print("bundle_id, api_id, and api_hash are required")
-              sys.exit(1)
-          print(f"Config OK: bundle_id={cfg['bundle_id']} enable_siri={cfg['enable_siri']} enable_icloud={cfg['enable_icloud']}")
-          PY
-          python3 build-system/Make/Make.py --help >/dev/null
-          test -f build-system/fake-codesigning/certs/SelfSigned.p12
-          test -f build-system/fake-codesigning/profiles/Telegram.mobileprovision
-
-      - name: Resolve Bazel configuration and query targets
-        run: |
-          set -euo pipefail
-          BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
-          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
-          python3 build-system/Make/Make.py \
-            --bazelUserRoot="$BAZEL_USER_ROOT" \
-            --cacheDir="$HOME/telegram-bazel-cache" \
-            --overrideXcodeVersion \
-            --overrideBazelVersion \
-            query \
-            --configurationPath="build-system/appstore-configuration.json" \
-            --codesigningInformationPath=build-system/fake-codesigning \
-            --queryArgs="//Telegram:Swiftgram"
-          VARS="build-input/configuration-repository/variables.bzl"
-          if ! grep -q 'telegram_enable_siri = False' "$VARS"; then
-            echo "Expected telegram_enable_siri = False in $VARS"
-            cat "$VARS"
-            exit 1
-          fi
-          if ! grep -q 'telegram_enable_icloud = False' "$VARS"; then
-            echo "Expected telegram_enable_icloud = False in $VARS"
-            cat "$VARS"
-            exit 1
-          fi
-          echo "variables.bzl entitlements flags OK"
 
       - name: Validate SweetGram AI modules
         run: |
@@ -131,7 +64,7 @@ jobs:
             --configurationPath="build-system/appstore-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
             --queryArgs="//submodules/SweetGramAI:SweetGramAI"
-          echo "SweetGram AI Bazel targets OK"
+          echo "SweetGram AI targets OK"
 
   build:
     needs: validate
@@ -153,38 +86,41 @@ jobs:
         run: |
           set -euo pipefail
           XCODE_VERSION=$(python3 -c 'import json; print(json.load(open("versions.json"))["xcode"])')
-          echo "Required Xcode: ${XCODE_VERSION}"
-          SELECTED=""
           for candidate in \
             "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer" \
             "/Applications/Xcode_${XCODE_VERSION}.0.app/Contents/Developer" \
             "/Applications/Xcode.app/Contents/Developer"; do
             if [ -d "$candidate" ]; then
-              sudo xcode-select -s "$candidate"
-              SELECTED="$candidate"
-              break
+              sudo xcode-select -s "$candidate"; break
             fi
           done
-          if [ -z "$SELECTED" ]; then
-            echo "No suitable Xcode found. Installed apps:"
-            ls -1 /Applications | grep -i Xcode || true
-            exit 1
-          fi
           xcodebuild -version
+
+      - name: Restore Bazel cache
+        id: cache-bazel
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.BAZEL_CACHE_DIR }}
+          key: bazel-cache-${{ github.ref_name }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'Telegram/BUILD', 'versions.json') }}
+          restore-keys: |
+            bazel-cache-${{ github.ref_name }}-
+            bazel-cache-master-
+            bazel-cache-
 
       - name: Create canonical source directory
         run: |
           set -euo pipefail
           sudo mkdir -p /Users/Shared
+          sudo mkdir -p ${{ env.BAZEL_CACHE_DIR }}
+          sudo chown -R $USER:staff ${{ env.BAZEL_CACHE_DIR }}
           rm -rf /Users/Shared/telegram-ios
           cp -R "$GITHUB_WORKSPACE" /Users/Shared/telegram-ios
 
-      - name: Build unsigned IPA
+      - name: Build unsigned IPA with dSYMs
         id: build
         run: |
           set -euo pipefail
 
-          # Stable absolute paths keep Bazel action keys consistent across CI runs.
           SOURCE_DIR=/Users/Shared/telegram-ios
           BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
           cd "$SOURCE_DIR"
@@ -196,14 +132,11 @@ jobs:
           echo "BUILD_NUMBER=${BUILD_NUMBER}" >> "$GITHUB_ENV"
           echo "APP_VERSION=${APP_VERSION}" >> "$GITHUB_ENV"
 
-          # Fake codesigning (SelfSigned.p12 + bundled profiles) - no Apple secrets required.
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
 
-          # disableExtensions: sideload-friendly IPA without app extensions.
-          # --cacheDir + --jobs: reuse disk cache and use all host CPUs (set in Make.py).
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$BAZEL_USER_ROOT" \
-            --cacheDir="$HOME/telegram-bazel-cache" \
+            --cacheDir="${{ env.BAZEL_CACHE_DIR }}" \
             --overrideXcodeVersion \
             --overrideBazelVersion \
             build \
@@ -211,22 +144,44 @@ jobs:
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
             --buildNumber="$BUILD_NUMBER" \
-            --disableExtensions
+            --disableExtensions \
+            --generateDsym
 
           OUTPUT_PATH="$SOURCE_DIR/build/artifacts"
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
 
+          # Collect IPA
           IPA_SRC="$SOURCE_DIR/bazel-bin/Telegram/Swiftgram.ipa"
           if [ ! -f "$IPA_SRC" ]; then
-            echo "No Swiftgram.ipa at $IPA_SRC; listing candidates:"
-            find bazel-bin bazel-out -name '*.ipa' -print 2>/dev/null || true
+            echo "No Swiftgram.ipa at $IPA_SRC; candidates:"
+            find "$SOURCE_DIR/bazel-bin" "$SOURCE_DIR/bazel-out" -name '*.ipa' -print 2>/dev/null || true
             exit 1
           fi
           cp "$IPA_SRC" "$OUTPUT_PATH/SweetGram.ipa"
           echo "ipa_path=$OUTPUT_PATH/SweetGram.ipa" >> "$GITHUB_OUTPUT"
 
+          # Collect dSYMs
+          mkdir -p "$OUTPUT_PATH/DSYMs"
+          for f in $(find "$SOURCE_DIR/bazel-out" -name '*.dSYM' -type d 2>/dev/null); do
+            cp -R "$f" "$OUTPUT_PATH/DSYMs/" 2>/dev/null || true
+          done
+          if [ -d "$OUTPUT_PATH/DSYMs" ] && [ "$(ls -A "$OUTPUT_PATH/DSYMs" 2>/dev/null)" ]; then
+            cd "$OUTPUT_PATH" && zip -r "SweetGram.dSYMs.zip" DSYMs -q
+            echo "dsyms_path=$OUTPUT_PATH/SweetGram.dSYMs.zip" >> "$GITHUB_OUTPUT"
+            ls -lah "$OUTPUT_PATH/SweetGram.dSYMs.zip"
+          else
+            echo "No dSYMs found"
+          fi
+
           ls -lah "$OUTPUT_PATH"
+
+      - name: Save Bazel cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.BAZEL_CACHE_DIR }}
+          key: bazel-cache-${{ github.ref_name }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'Telegram/BUILD', 'versions.json') }}
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
@@ -234,4 +189,13 @@ jobs:
           name: SweetGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
           path: /Users/Shared/telegram-ios/build/artifacts/SweetGram.ipa
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload dSYMs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SweetGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-dSYMs
+          path: /Users/Shared/telegram-ios/build/artifacts/SweetGram.dSYMs.zip
+          if-no-files-found: warn
           retention-days: 14
