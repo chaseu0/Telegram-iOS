@@ -1,4 +1,5 @@
 // MARK: Swiftgram
+import SweetGramUIHooks
 import SGLogging
 import SGSimpleSettings
 import SGStrings
@@ -127,6 +128,7 @@ private enum SGSliderSetting: String {
 private enum SGDisclosureLink: String {
     case contentSettings
     case languageSettings
+    case sweetgramLLM
 }
 
 private struct PeerNameColorScreenState: Equatable {
@@ -329,6 +331,13 @@ private func SGControllerEntries(presentationData: PresentationData, callListSet
     entries.append(.toggle(id: id.count, section: .other, settingName: .hidePhoneInSettings, value: SGSimpleSettings.shared.hidePhoneInSettings, text: i18n("Settings.HidePhoneInSettingsUI", lang), enabled: true))
     entries.append(.notice(id: id.count, section: .other, text: i18n("Settings.HidePhoneInSettingsUI.Notice", lang)))
     
+    // MARK: SweetGram
+    if SweetGramSettingsHook.isLLMSettingsAvailable {
+        entries.append(.header(id: id.count, section: .other, text: "SweetGram", badge: nil))
+        entries.append(.disclosure(id: id.count, section: .other, link: .sweetgramLLM, text: "SweetGram AI"))
+        entries.append(.notice(id: id.count, section: .other, text: "Configure OpenAI-compatible API, RAG chat, and local agent server."))
+    }
+
     return filterSGItemListUIEntrires(entries: entries, by: state.searchQuery)
 }
 
@@ -684,6 +693,10 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
         switch (link) {
             case .languageSettings:
                 pushControllerImpl?(context.sharedContext.makeLocalizationListController(context: context))
+            case .sweetgramLLM:
+                SweetGramSettingsHook.openLLMSettings(context: context, push: { controller in
+                    pushControllerImpl?(controller)
+                })
             case .contentSettings:
                 let _ = (getSGSettingsURL(context: context) |> deliverOnMainQueue).start(next: { [weak context] url in
                     guard let strongContext = context else {

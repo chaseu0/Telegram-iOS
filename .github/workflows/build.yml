@@ -115,6 +115,24 @@ jobs:
           fi
           echo "variables.bzl entitlements flags OK"
 
+      - name: Validate SweetGram AI modules
+        run: |
+          set -euo pipefail
+          for mod in SweetGramCore SweetGramAI SweetGramIntegration SweetGramUIHooks; do
+            test -f "submodules/${mod}/BUILD" || { echo "Missing ${mod}/BUILD"; exit 1; }
+          done
+          test -f Swiftgram/SweetGramTelegramUIHooks/BUILD
+          python3 build-system/Make/Make.py \
+            --bazelUserRoot="/private/var/tmp/_bazel_containerhost" \
+            --cacheDir="$HOME/telegram-bazel-cache" \
+            --overrideXcodeVersion \
+            --overrideBazelVersion \
+            query \
+            --configurationPath="build-system/appstore-configuration.json" \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --queryArgs="//submodules/SweetGramAI:SweetGramAI //submodules/SweetGramUIHooks:SweetGramUIHooks"
+          echo "SweetGram AI Bazel targets OK"
+
   build:
     needs: validate
     runs-on: macos-26

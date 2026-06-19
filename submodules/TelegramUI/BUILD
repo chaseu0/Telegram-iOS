@@ -7,6 +7,9 @@ load(
 
 sgdeps = [
     "//Swiftgram/SGSettingsUI:SGSettingsUI",
+    "//submodules/SweetGramCore:SweetGramCore",
+    "//submodules/SweetGramIntegration:SweetGramIntegration",
+    "//submodules/SweetGramUIHooks:SweetGramUIHooks",
     "//Swiftgram/SGConfig:SGConfig",
     "//Swiftgram/SGAPIWebSettings:SGAPIWebSettings",
     "//Swiftgram/SGAppGroupIdentifier:SGAppGroupIdentifier",
@@ -31,6 +34,7 @@ sgsrcs = [
     "//Swiftgram/SGDBReset:SGDBReset",
     "//Swiftgram/SGShowMessageJson:SGShowMessageJson",
     "//Swiftgram/ChatControllerImplExtension:ChatControllerImplExtension",
+    "//Swiftgram/SweetGramTelegramUIHooks:SweetGramTelegramUIHooks",
     "//Swiftgram/SGSharedAccountContextMigration:SGSharedAccountContextMigration"
 ]
 

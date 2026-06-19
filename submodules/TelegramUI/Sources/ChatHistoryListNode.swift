@@ -2229,6 +2229,14 @@ public final class ChatHistoryListNodeImpl: ListViewImpl, ChatHistoryNode, ChatH
                 let processedView = ChatHistoryView(originalView: view, filteredEntries: filteredEntries, associatedData: associatedData, lastHeaderId: lastHeaderId, id: id, locationInput: update.2, ignoreMessagesInTimestampRange: update.3, ignoreMessageIds: update.4)
                 let previousValueAndVersion = previousView.swap((processedView, update.1, selectedMessages, allAdMessages.version))
                 let _ = chatHistoryEntriesForViewState.swap(updatedChatHistoryEntriesForViewState)
+                // MARK: SweetGram
+                SweetGramMessagePipelineHook.processHistoryViewUpdate(
+                    context: context,
+                    chatLocation: chatLocation,
+                    previous: previousValueAndVersion?.0,
+                    current: processedView,
+                    urlScheme: BuildConfig(baseAppBundleId: Bundle.main.bundleIdentifier ?? "").appSpecificUrlScheme
+                )
                 let previous = previousValueAndVersion?.0
                 let previousSelectedMessages = previousValueAndVersion?.2
                 

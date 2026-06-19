@@ -2,6 +2,7 @@
 import SGSimpleSettings
 
 import Foundation
+import SweetGramUIHooks
 import UIKit
 import Postbox
 import SwiftSignalKit
@@ -3748,6 +3749,17 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
         let _ = (context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: peerId))
         |> deliverOnMainQueue).startStandalone(next: { peer in
             guard case let .channel(channel) = peer else {
+                var items: [ContextMenuItem] = []
+                SweetGramChatMenuHook.appendChatSummaryMenuItem(
+                    context: context,
+                    sourceController: sourceController,
+                    peerId: peerId,
+                    items: &items
+                )
+                guard !items.isEmpty else { return }
+                let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+                let contextController = makeContextController(presentationData: presentationData, source: .reference(HeaderContextReferenceContentSource(controller: sourceController, sourceView: sourceView)), items: .single(ContextController.Items(content: .list(items))), gesture: gesture)
+                sourceController.presentInGlobalOverlay(contextController)
                 return
             }
             
@@ -3901,6 +3913,14 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
                     sourceController.push(controller)
                 })))
             }
+
+            // MARK: SweetGram
+            SweetGramChatMenuHook.appendChatSummaryMenuItem(
+                context: context,
+                sourceController: sourceController,
+                peerId: peerId,
+                items: &items
+            )
 
             let presentationData = context.sharedContext.currentPresentationData.with { $0 }
             let contextController = makeContextController(presentationData: presentationData, source: .reference(HeaderContextReferenceContentSource(controller: sourceController, sourceView: sourceView)), items: .single(ContextController.Items(content: .list(items))), gesture: gesture)

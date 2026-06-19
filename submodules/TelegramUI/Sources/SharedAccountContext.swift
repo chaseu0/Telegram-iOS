@@ -5,6 +5,7 @@ import SGProUI
 import SGSimpleSettings
 //
 import Foundation
+import SweetGramUIHooks
 import UIKit
 import AsyncDisplayKit
 import Postbox
@@ -548,6 +549,7 @@ public final class SharedAccountContextImpl: SharedAccountContext {
             }
         })
         self.initSGIAP(isMainApp: applicationBindings.isMainApp)
+        SweetGramBootstrapHook.bootstrapIfNeeded(context: self)
         //
         
         let _ = self.contactDataManager?.personNameDisplayOrder().start(next: { order in

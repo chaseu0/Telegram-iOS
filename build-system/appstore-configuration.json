@@ -1,5 +1,5 @@
 {
-	"sg_config": "",
+	"sg_config": "{\"sweetgram_variant\":\"ai-full\",\"branding\":\"SweetGram\"}",
 	"bundle_id": "ph.telegra.Telegraph",
 	"api_id": "8",
 	"api_hash": "7245de8e747a0d6fbe11f7cc14fcc0bb",

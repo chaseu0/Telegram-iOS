@@ -1,4 +1,5 @@
 import Foundation
+import SweetGramUIHooks
 import UIKit
 import Postbox
 import SwiftSignalKit
@@ -456,6 +457,16 @@ extension ChatControllerImpl {
                     self.push(controller)
                 })))
             }
+        }
+
+        // MARK: SweetGram
+        if let peerId = self.chatLocation.peerId {
+            SweetGramChatMenuHook.appendChatSummaryMenuItem(
+                context: self.context,
+                sourceController: self,
+                peerId: peerId,
+                items: &items
+            )
         }
 
         let presentationData = self.presentationData

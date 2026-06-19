@@ -17,6 +17,7 @@ swift_library(
     ],
     deps = [
         "//Swiftgram/SGItemListUI:SGItemListUI",
+        "//submodules/SweetGramUIHooks:SweetGramUIHooks",
         "//Swiftgram/SGLogging:SGLogging",
         "//Swiftgram/SGSimpleSettings:SGSimpleSettings",
         "//Swiftgram/SGStrings:SGStrings",
