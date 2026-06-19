@@ -278,7 +278,7 @@ public final class AgentHTTPServer {
 
 
         if path == "/api/agent/market-research" {
-            guard let query = query["q"], !query.isEmpty else {
+            guard let q = query["q"], !q.isEmpty else {
                 respond(connection: connection, status: 400, body: ["error": "missing q param"])
                 return
             }
@@ -296,7 +296,7 @@ public final class AgentHTTPServer {
         }
 
         if path == "/api/agent/market-research" {
-            guard let query = query["q"], !query.isEmpty else {
+            guard let q = query["q"], !q.isEmpty else {
                 respond(connection: connection, status: 400, body: ["error": "missing q param"])
                 return
             }
