@@ -1,6 +1,7 @@
 #ifndef SweetGramSQLite_h
 #define SweetGramSQLite_h
 
+#import <Foundation/Foundation.h>
 #import <sqlcipher/sqlite3.h>
 
 /// Thin ObjC wrapper so SweetGramAI Swift code can call sqlite3 without importing SQLite3 module.

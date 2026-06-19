@@ -1,4 +1,5 @@
 #import "SweetGramSQLite.h"
+#import <Foundation/Foundation.h>
 
 @implementation SweetGramSQLite
 
