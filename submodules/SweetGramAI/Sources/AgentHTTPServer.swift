@@ -276,6 +276,16 @@ public final class AgentHTTPServer {
             return
         }
 
+
+        if path == "/api/agent/market-research" {
+            guard let query = query["q"], !query.isEmpty else {
+                respond(connection: connection, status: 400, body: ["error": "missing q param"])
+                return
+            }
+            runMarketResearch(query: query, connection: connection)
+            return
+        }
+
         respond(connection: connection, status: 404, body: ["error": "not found", "path": path])
     }
 
@@ -284,6 +294,16 @@ public final class AgentHTTPServer {
             applyLLMConfig(body: body, connection: connection)
             return
         }
+
+        if path == "/api/agent/market-research" {
+            guard let query = query["q"], !query.isEmpty else {
+                respond(connection: connection, status: 400, body: ["error": "missing q param"])
+                return
+            }
+            runMarketResearch(query: query, connection: connection)
+            return
+        }
+
         respond(connection: connection, status: 404, body: ["error": "not found", "path": path])
     }
 
@@ -375,6 +395,38 @@ public final class AgentHTTPServer {
         return result
     }
 
+
+    private func runMarketResearch(query: String, connection: NWConnection) {
+        // Market Research Agent: collects seller info from contacts and groups
+        // Steps:
+        // 1. List all contacts
+        // 2. For each contact, get profile and bio
+        // 3. Extract group links from bio
+        // 4. For each group, get messages
+        // 5. Use LLM to structure the data
+        //
+        // Since this is async and complex, we return instructions + available endpoints
+        // for the external AI orchestrator to call.
+        respond(connection: connection, status: 200, jsonObject: [
+            "agent": "market_research",
+            "query": query,
+            "workflow": [
+                "1. GET /api/contacts — list all contacts",
+                "2. GET /api/contacts/{id}/profile — get contact details",
+                "3. GET /api/contacts/{id}/bio/groups — extract group links from bio",
+                "4. GET /api/groups — list all groups",
+                "5. GET /api/groups/{id}/messages?limit=1000 — get group messages",
+                "6. GET /api/groups/{id}/preview — preview group without context switch",
+                "7. POST /api/config/llm — set LLM for AI analysis",
+            ],
+            "note": "Use these endpoints iteratively. For each contact, check bio for group links. For each group, extract messages to find sellers, prices, and product info.",
+            "curl_examples": [
+                "curl http://localhost:8787/api/contacts",
+                "curl http://localhost:8787/api/contacts/123456789/bio/groups",
+                "curl http://localhost:8787/api/groups/987654321/messages?limit=1000",
+            ]
+        ])
+    }
     private func respond(connection: NWConnection, status: Int, jsonObject: Any) {
         guard JSONSerialization.isValidJSONObject(jsonObject),
               let json = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.sortedKeys]),
