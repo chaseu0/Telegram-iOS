@@ -132,7 +132,7 @@ public final class AgentDataProvider: AgentDataProviding {
         return EnginePeer(author).compactDisplayTitle
     }
 
-    private static func message(from entry: MessageHistoryEntry) -> Message {
+    private static func message(from entry: MessageHistoryEntry) -> Message? {
         return entry.message
     }
 }

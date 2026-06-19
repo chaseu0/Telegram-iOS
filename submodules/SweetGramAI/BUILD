@@ -5,9 +5,12 @@ swift_library(
     module_name = "SweetGramAI",
     srcs = glob([
         "Sources/**/*.swift",
-    ]),
+    ]) + [
+        "Sources/SweetGramSQLite.m",
+    ],
     deps = [
         "//submodules/SweetGramCore:SweetGramCore",
+        "//submodules/sqlcipher:sqlcipher",
     ],
     visibility = ["//visibility:public"],
 )

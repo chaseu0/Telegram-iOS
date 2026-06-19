@@ -30,6 +30,10 @@ objc_library(
         "-DSQLITE_MAX_MMAP_SIZE=0",
         "-Wno-all",
         "-Wno-#warnings",
+        # Workaround: Xcode 26.x SDK defines more members in sqlite3_api_routines
+        # than this older sqlcipher. Prevent SDK header from leaking into our module.
+        "-DSQLITE_OMIT_LOAD_EXTENSION=1",
+        "-Wno-error",
     ],
     sdk_frameworks = [
       "Foundation",
