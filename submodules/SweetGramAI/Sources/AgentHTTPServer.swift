@@ -282,7 +282,7 @@ public final class AgentHTTPServer {
                 respond(connection: connection, status: 400, body: ["error": "missing q param"])
                 return
             }
-            runMarketResearch(query: query, connection: connection)
+            runMarketResearch(query: q, connection: connection)
             return
         }
 
@@ -292,15 +292,6 @@ public final class AgentHTTPServer {
     private func routePOST(path: String, body: Data, connection: NWConnection) {
         if path == "/api/config/llm" {
             applyLLMConfig(body: body, connection: connection)
-            return
-        }
-
-        if path == "/api/agent/market-research" {
-            guard let q = query["q"], !q.isEmpty else {
-                respond(connection: connection, status: 400, body: ["error": "missing q param"])
-                return
-            }
-            runMarketResearch(query: query, connection: connection)
             return
         }
 
