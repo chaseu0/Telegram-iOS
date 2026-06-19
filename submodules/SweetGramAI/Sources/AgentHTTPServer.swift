@@ -28,6 +28,14 @@ public struct AgentPeerProfileDTO: Codable, Equatable {
         case title, username, bio
         case isGroup = "is_group"
     }
+
+    public init(peerId: Int64, title: String, username: String?, bio: String?, isGroup: Bool) {
+        self.peerId = peerId
+        self.title = title
+        self.username = username
+        self.bio = bio
+        self.isGroup = isGroup
+    }
 }
 
 /// Injected by TelegramUI layer — keeps SweetGramAI free of Postbox/TelegramCore deps.

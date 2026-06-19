@@ -66,7 +66,7 @@ public enum SweetGramChatMenuHook {
             })
         }
         alert.addAction(UIAlertAction(title: presentationData.strings.Common_Cancel, style: .cancel))
-        sourceController.present(alert, in: .window(.root))
+        presentNativeAlert(context: context, alert: alert)
     }
 
     private static func presentActionPicker(
@@ -84,7 +84,7 @@ public enum SweetGramChatMenuHook {
             promptRAGQuestion(context: context, sourceController: sourceController, peerId: peerId, limit: limit)
         })
         alert.addAction(UIAlertAction(title: presentationData.strings.Common_Cancel, style: .cancel))
-        sourceController.present(alert, in: .window(.root))
+        presentNativeAlert(context: context, alert: alert)
     }
 
     private static func loadMessages(
@@ -116,7 +116,7 @@ public enum SweetGramChatMenuHook {
                     guard let message = message(from: entry) else { return nil }
                     let text = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty else { return nil }
-                    let author = message.author?.compactDisplayTitle ?? "Unknown"
+                    let author = authorTitle(message.author)
                     return "\(author): \(text)"
                 }
                 return (chatTitle, limit.apply(to: lines))
@@ -135,7 +135,7 @@ public enum SweetGramChatMenuHook {
         limit: MessageContextLimit
     ) {
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
-        let statusController = OverlayStatusController(theme: presentationData.theme, type: .loading(canceled: nil))
+        let statusController = OverlayStatusController(theme: presentationData.theme, type: .loading(cancelled: nil))
         sourceController.present(statusController, in: .window(.root))
 
         loadMessages(context: context, peerId: peerId, limit: limit) { chatTitle, lines in
@@ -151,7 +151,7 @@ public enum SweetGramChatMenuHook {
                             text: summary.summary + topics,
                             actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]
                         )
-                        sourceController.present(alert, in: .window(.root))
+                        presentNativeAlert(context: context, alert: alert)
                     case let .failure(error):
                         let alert = textAlertController(
                             context: context,
@@ -159,7 +159,7 @@ public enum SweetGramChatMenuHook {
                             text: error.localizedDescription,
                             actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]
                         )
-                        sourceController.present(alert, in: .window(.root))
+                        presentNativeAlert(context: context, alert: alert)
                     }
                 }
             }
@@ -183,7 +183,7 @@ public enum SweetGramChatMenuHook {
             guard !question.isEmpty else { return }
             runRAG(context: context, sourceController: sourceController, peerId: peerId, limit: limit, question: question)
         })
-        sourceController.present(alert, in: .window(.root))
+        presentNativeAlert(context: context, alert: alert)
     }
 
     private static func runRAG(
@@ -194,7 +194,7 @@ public enum SweetGramChatMenuHook {
         question: String
     ) {
         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
-        let statusController = OverlayStatusController(theme: presentationData.theme, type: .loading(canceled: nil))
+        let statusController = OverlayStatusController(theme: presentationData.theme, type: .loading(cancelled: nil))
         sourceController.present(statusController, in: .window(.root))
 
         loadMessages(context: context, peerId: peerId, limit: limit) { chatTitle, lines in
@@ -218,7 +218,7 @@ public enum SweetGramChatMenuHook {
                             text: answer,
                             actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]
                         )
-                        sourceController.present(alert, in: .window(.root))
+                        presentNativeAlert(context: context, alert: alert)
                     case let .failure(error):
                         let alert = textAlertController(
                             context: context,
@@ -226,21 +226,23 @@ public enum SweetGramChatMenuHook {
                             text: error.localizedDescription,
                             actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]
                         )
-                        sourceController.present(alert, in: .window(.root))
+                        presentNativeAlert(context: context, alert: alert)
                     }
                 }
             }
         }
     }
 
-    private static func message(from entry: MessageHistoryEntry) -> Message? {
-        switch entry {
-        case let .MessageEntry(message, _, _, _, _, _):
-            return message
-        case let .MessageGroupEntry(_, messages, _):
-            return messages.first?.0
-        default:
-            return nil
-        }
+    private static func authorTitle(_ author: Peer?) -> String {
+        guard let author else { return "Unknown" }
+        return EnginePeer(author).compactDisplayTitle
+    }
+
+    private static func presentNativeAlert(context: AccountContext, alert: UIAlertController) {
+        context.sharedContext.applicationBindings.presentNativeController(alert)
+    }
+
+    private static func message(from entry: MessageHistoryEntry) -> Message {
+        return entry.message
     }
 }

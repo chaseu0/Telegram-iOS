@@ -4,6 +4,7 @@ import Postbox
 import TelegramCore
 import AccountContext
 import SweetGramAI
+import LocalizedPeerData
 
 /// Bridges Telegram postbox/engine data to the local Agent HTTP API.
 public final class AgentDataProvider: AgentDataProviding {
@@ -41,7 +42,7 @@ public final class AgentDataProvider: AgentDataProviding {
                 guard !text.isEmpty else { return nil }
                 return AgentMessageDTO(
                     id: message.id.id,
-                    author: message.author?.compactDisplayTitle ?? "Unknown",
+                    author: Self.authorTitle(message.author),
                     text: text,
                     timestamp: Double(message.timestamp)
                 )
@@ -110,10 +111,10 @@ public final class AgentDataProvider: AgentDataProviding {
         |> deliverOnMainQueue).startStandalone(next: { list in
             var ids: [Int64] = []
             for item in list.items {
-                let peer = item.renderedPeer.peer
+                guard let peer = item.renderedPeer.chatMainPeer else { continue }
                 switch peer {
                 case let .channel(channel):
-                    if channel.participationStatus == .member {
+                    if case .group = channel.info {
                         ids.append(peer.id.toInt64())
                     }
                 case .legacyGroup:
@@ -126,14 +127,12 @@ public final class AgentDataProvider: AgentDataProviding {
         })
     }
 
-    private static func message(from entry: MessageHistoryEntry) -> Message? {
-        switch entry {
-        case let .MessageEntry(message, _, _, _, _, _):
-            return message
-        case let .MessageGroupEntry(_, messages, _):
-            return messages.first?.0
-        default:
-            return nil
-        }
+    private static func authorTitle(_ author: Peer?) -> String {
+        guard let author else { return "Unknown" }
+        return EnginePeer(author).compactDisplayTitle
+    }
+
+    private static func message(from entry: MessageHistoryEntry) -> Message {
+        return entry.message
     }
 }

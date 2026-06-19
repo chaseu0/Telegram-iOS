@@ -238,7 +238,7 @@ public func sweetGramLLMSettingsController(context: AccountContext) -> ViewContr
             presentProfileEditor(
                 context: context,
                 profileId: nil,
-                present: { presentControllerImpl?($0, nil) },
+                present: { context.sharedContext.applicationBindings.presentNativeController($0) },
                 onSave: {
                     updateState { state in
                         var updated = state
@@ -252,7 +252,7 @@ public func sweetGramLLMSettingsController(context: AccountContext) -> ViewContr
             presentProfileEditor(
                 context: context,
                 profileId: profileId,
-                present: { presentControllerImpl?($0, nil) },
+                present: { context.sharedContext.applicationBindings.presentNativeController($0) },
                 onSave: {
                     updateState { state in
                         var updated = state
@@ -308,7 +308,7 @@ public func sweetGramLLMSettingsController(context: AccountContext) -> ViewContr
         context.sharedContext.presentationData,
         statePromise.get()
     )
-    |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, Any)) in
+    |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, SweetGramLLMSettingsArguments)) in
         _ = state
         let entries = sweetGramLLMSettingsEntries(presentationData: presentationData)
         let controllerState = ItemListControllerState(
@@ -318,7 +318,7 @@ public func sweetGramLLMSettingsController(context: AccountContext) -> ViewContr
             rightNavigationButton: nil,
             backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back)
         )
-        let listState = ItemListNodeState(entries: entries, style: .blocks, ensureVisibleItemTag: nil, initialScrollToItem: nil)
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: entries, style: .blocks, ensureVisibleItemTag: nil, initialScrollToItem: nil)
         return (controllerState, (listState, arguments))
     }
 
@@ -334,7 +334,7 @@ public func sweetGramLLMSettingsController(context: AccountContext) -> ViewContr
 private func presentProfileEditor(
     context: AccountContext,
     profileId: String?,
-    present: @escaping (ViewController) -> Void,
+    present: @escaping (UIViewController) -> Void,
     onSave: @escaping () -> Void
 ) {
     let presentationData = context.sharedContext.currentPresentationData.with { $0 }
@@ -361,7 +361,7 @@ private func presentProfileEditor(
         LLMSettingsPresenter.shared.saveManualProfile(id: profileId, name: name, baseURL: baseURL, model: model, apiKey: apiKey)
         onSave()
     })
-    present(alert)
+    present(alert as UIViewController)
 }
 
 private func promptAgentPort(context: AccountContext, hostController: ViewController?, onSave: @escaping () -> Void) {
@@ -380,7 +380,7 @@ private func promptAgentPort(context: AccountContext, hostController: ViewContro
             onSave()
         }
     })
-    hostController?.present(alert, animated: true)
+    context.sharedContext.applicationBindings.presentNativeController(alert)
 }
 
 private extension Array {
