@@ -1,4 +1,43 @@
 import Foundation
+import SweetGramSQLite
+
+// MARK: - Data types
+
+public struct AIChatSession {
+    public let id: Int64
+    public let peerId: Int64
+    public let title: String
+    public let messageLimit: Int
+    public let createdAt: Date
+    public let updatedAt: Date
+
+    public init(id: Int64, peerId: Int64, title: String, messageLimit: Int, createdAt: Date, updatedAt: Date) {
+        self.id = id
+        self.peerId = peerId
+        self.title = title
+        self.messageLimit = messageLimit
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+public struct AIChatMessage {
+    public let id: Int64
+    public let sessionId: Int64
+    public let role: String
+    public let content: String
+    public let createdAt: Date
+
+    public init(id: Int64, sessionId: Int64, role: String, content: String, createdAt: Date) {
+        self.id = id
+        self.sessionId = sessionId
+        self.role = role
+        self.content = content
+        self.createdAt = createdAt
+    }
+}
+
+// MARK: - Store
 
 /// SQLite persistence for RAG Q&A sessions.
 /// Uses ObjC wrapper (SweetGramSQLite) instead of importing system SQLite3 module
