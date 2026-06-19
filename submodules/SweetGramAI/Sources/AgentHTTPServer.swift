@@ -129,18 +129,32 @@ public final class AgentHTTPServer {
         let method = String(parts[0])
         let path = String(parts[1]).components(separatedBy: "?").first ?? "/"
         let query = parseQuery(String(parts[1]))
+        let bodyData = extractBody(from: data)
 
-        guard method == "GET" else {
+        switch method {
+        case "GET":
+            routeGET(path: path, query: query, connection: connection)
+        case "POST":
+            routePOST(path: path, body: bodyData, connection: connection)
+        default:
             respond(connection: connection, status: 405, body: ["error": "method not allowed"])
+        }
+    }
+
+    private func extractBody(from data: Data) -> Data {
+        let marker = Data("\r\n\r\n".utf8)
+        guard let range = data.range(of: marker) else { return Data() }
+        return data[range.upperBound...]
+    }
+
+    private func routeGET(path: String, query: [String: String], connection: NWConnection) {
+        if path == "/health" {
+            respond(connection: connection, status: 200, body: ["status": "ok", "port": Int(port)])
             return
         }
 
-        route(path: path, query: query, connection: connection)
-    }
-
-    private func route(path: String, query: [String: String], connection: NWConnection) {
-        if path == "/health" {
-            respond(connection: connection, status: 200, body: ["status": "ok", "port": Int(port)])
+        if path == "/api/config/llm" {
+            respondLLMConfig(connection: connection)
             return
         }
 
@@ -256,6 +270,80 @@ public final class AgentHTTPServer {
         respond(connection: connection, status: 404, body: ["error": "not found", "path": path])
     }
 
+    private func routePOST(path: String, body: Data, connection: NWConnection) {
+        if path == "/api/config/llm" {
+            applyLLMConfig(body: body, connection: connection)
+            return
+        }
+        respond(connection: connection, status: 404, body: ["error": "not found", "path": path])
+    }
+
+    private struct LLMConfigPayload: Decodable {
+        let name: String?
+        let baseURL: String?
+        let model: String?
+        let apiKey: String?
+        let profileId: String?
+
+        enum CodingKeys: String, CodingKey {
+            case name, model
+            case baseURL = "base_url"
+            case apiKey = "api_key"
+            case profileId = "profile_id"
+        }
+    }
+
+    private func respondLLMConfig(connection: NWConnection) {
+        guard let profile = LLMProfileManager.shared.activeProfile() else {
+            respond(connection: connection, status: 404, body: ["error": "no active llm profile"])
+            return
+        }
+        let settings = SweetGramUserSettings.load()
+        respond(connection: connection, status: 200, body: [
+            "profile_id": settings.selectedLLMProfileId ?? LLMProfileManager.shared.activeProfileId() ?? "",
+            "name": profile.name,
+            "base_url": profile.baseURL,
+            "model": profile.model,
+            "api_key_masked": LLMProfileManager.shared.maskedApiKey(
+                for: settings.selectedLLMProfileId ?? LLMProfileManager.shared.activeProfileId() ?? ""
+            ),
+            "api_format": profile.apiFormat.rawValue
+        ])
+    }
+
+    private func applyLLMConfig(body: Data, connection: NWConnection) {
+        guard let payload = try? JSONDecoder().decode(LLMConfigPayload.self, from: body) else {
+            respond(connection: connection, status: 400, body: ["error": "invalid json body"])
+            return
+        }
+
+        let baseURL = payload.baseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let model = payload.model?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let name = payload.name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "LAN Import"
+        guard !baseURL.isEmpty, !model.isEmpty else {
+            respond(connection: connection, status: 400, body: ["error": "base_url and model are required"])
+            return
+        }
+
+        let profile = LLMProfileManager.shared.upsertProfile(
+            id: payload.profileId,
+            name: name,
+            baseURL: baseURL,
+            model: model,
+            apiKey: payload.apiKey ?? ""
+        )
+        LLMProfileManager.shared.selectProfile(id: profile.id)
+
+        respond(connection: connection, status: 200, body: [
+            "status": "ok",
+            "profile_id": profile.id,
+            "name": profile.name,
+            "base_url": profile.baseURL,
+            "model": profile.model,
+            "api_key_set": !(payload.apiKey ?? "").isEmpty || LLMProfileManager.shared.maskedApiKey(for: profile.id) != "(not set)"
+        ])
+    }
+
     private static func extractGroupLinks(from bio: String) -> [String] {
         let pattern = #"(@\w+|https?://t\.me/\S+)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
@@ -345,5 +433,9 @@ private extension Data {
         let marker = Data("\r\n\r\n".utf8)
         return range(of: marker) != nil
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 

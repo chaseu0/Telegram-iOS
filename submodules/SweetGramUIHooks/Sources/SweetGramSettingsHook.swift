@@ -167,7 +167,16 @@ private enum SweetGramLLMSettingsEntry: ItemListNodeEntry {
         case .agentHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "Local Agent API", sectionId: self.section)
         case let .agentPort(text):
-            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+            return ItemListActionItem(
+                presentationData: presentationData,
+                systemStyle: .glass,
+                title: text,
+                kind: .generic,
+                alignment: .natural,
+                sectionId: self.section,
+                style: .blocks,
+                action: { arguments.configureAgent() }
+            )
         case let .agentStatus(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         }
