@@ -1,17 +1,24 @@
-name: CI
+name: CI (Cached)
 
 on:
-  # push:
-  #   branches: [ master ]
-
+  push:
+    branches:
+      - chaseu0-patch-1
+      - master
+      - 'release/**'
   workflow_dispatch:
+
+env:
+  BAZEL_CACHE_DIR: /Users/Shared/bazel-cache
+  BAZEL_USER_ROOT: /Users/Shared/bazel-outputbase
+  SOURCE_DIR: /Users/Shared/telegram-ios
 
 jobs:
   build:
     runs-on: macos-13
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: '0'
@@ -21,24 +28,49 @@ jobs:
           XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
           sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
 
+      - name: Compute cache keys
+        id: cache-keys
+        run: |
+          echo "cache-key=bazel-cache-${{ github.ref_name }}-$(sha256sum MODULE.bazel MODULE.bazel.lock Telegram/BUILD versions.json | sha256sum | cut -c1-16)" >> $GITHUB_OUTPUT
+          echo "output-key=bazel-output-${{ github.ref_name }}-$(sha256sum MODULE.bazel MODULE.bazel.lock Telegram/BUILD versions.json | sha256sum | cut -c1-16)" >> $GITHUB_OUTPUT
+
+      - name: Restore Bazel disk cache
+        id: cache-bazel
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.BAZEL_CACHE_DIR }}
+          key: ${{ steps.cache-keys.outputs.cache-key }}
+          restore-keys: |
+            bazel-cache-${{ github.ref_name }}-
+            bazel-cache-master-
+            bazel-cache-
+
+      - name: Restore Bazel output base
+        id: cache-bazel-output
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.BAZEL_USER_ROOT }}
+          key: ${{ steps.cache-keys.outputs.output-key }}
+          restore-keys: |
+            bazel-output-${{ github.ref_name }}-
+            bazel-output-master-
+            bazel-output-
+
       - name: Create canonical source directory
         run: |
           set -x
           sudo mkdir -p /Users/Shared
+          sudo mkdir -p ${{ env.BAZEL_CACHE_DIR }}
+          sudo mkdir -p ${{ env.BAZEL_USER_ROOT }}
+          sudo chown -R $USER:staff /Users/Shared/bazel-cache
+          sudo chown -R $USER:staff /Users/Shared/bazel-outputbase
           cp -R $GITHUB_WORKSPACE /Users/Shared/
-          mv /Users/Shared/$(basename $GITHUB_WORKSPACE) /Users/Shared/telegram-ios
+          mv /Users/Shared/$(basename $GITHUB_WORKSPACE) ${{ env.SOURCE_DIR }}
 
       - name: Build the App
         run: |
           set -x
-
-          # source code paths are included in the final binary, so we need to make them stable across builds
-          SOURCE_DIR=/Users/Shared/telegram-ios
-
-          # use canonical bazel root
-          BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
-
-          cd $SOURCE_DIR
+          cd ${{ env.SOURCE_DIR }}
 
           BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
 
@@ -51,10 +83,11 @@ jobs:
 
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
-            --bazelUserRoot="$BAZEL_USER_ROOT" \
+            --bazelUserRoot="${{ env.BAZEL_USER_ROOT }}" \
             build \
             --configurationPath="build-system/appstore-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
+            --cacheDir="${{ env.BAZEL_CACHE_DIR }}" \
             --configuration=release_arm64 \
             --buildNumber="$BUILD_NUMBER"
 
@@ -73,6 +106,20 @@ jobs:
           done
           zip -r "./$OUTPUT_PATH/Telegram.DSYMs.zip" build/DSYMs 1>/dev/null
 
+      - name: Save Bazel disk cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.BAZEL_CACHE_DIR }}
+          key: ${{ steps.cache-keys.outputs.cache-key }}
+
+      - name: Save Bazel output base
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.BAZEL_USER_ROOT }}
+          key: ${{ steps.cache-keys.outputs.output-key }}
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -87,23 +134,23 @@ jobs:
           prerelease: false
 
       - name: Upload Release IPA
-        id: upload-release-ipa 
+        id: upload-release-ipa
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          asset_path: ${{ env.SOURCE_DIR }}/build/artifacts/Telegram.ipa
           asset_name: Telegram.ipa
           asset_content_type: application/zip
 
       - name: Upload Release DSYM
-        id: upload-release-dsym 
+        id: upload-release-dsym
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
+          asset_path: ${{ env.SOURCE_DIR }}/build/artifacts/Telegram.DSYMs.zip
           asset_name: Telegram.DSYMs.zip
           asset_content_type: application/zip
