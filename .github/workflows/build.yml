@@ -16,8 +16,6 @@ permissions:
 
 env:
   BAZEL_CACHE_DIR: /Users/Shared/bazel-cache
-  # Stable key — only invalidates when Xcode/Bazel versions change.
-  # Bazel's content-addressed disk cache handles file-level incrementality.
   CACHE_VERSION: v2
 
 jobs:
@@ -51,9 +49,6 @@ jobs:
           done
           xcodebuild -version
 
-      # Bazel disk cache is content-addressed: hits only depend on action
-      # input hashes, not on our workflow key. A stable key means all
-      # push builds reuse the same cache slot; Bazel handles incrementality.
       - name: Restore Bazel disk cache
         id: cache-bazel-restore
         uses: actions/cache/restore@v4
@@ -102,11 +97,12 @@ jobs:
             --buildNumber="$BUILD_NUMBER" \
             --disableExtensions
 
-          OUTPUT_PATH="$GITHUB_WORKSPACE/build/artifacts"
+          # Collect artifacts at a well-known absolute path
+          OUTPUT_PATH="$RUNNER_TEMP/build-artifacts"
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
 
-          # Collect IPA
+          # Collect IPA from the workspace root
           IPA_SRC="$GITHUB_WORKSPACE/bazel-bin/Telegram/Swiftgram.ipa"
           if [ ! -f "$IPA_SRC" ]; then
             echo "No Swiftgram.ipa at $IPA_SRC; searching..."
@@ -116,17 +112,18 @@ jobs:
           cp "$IPA_SRC" "$OUTPUT_PATH/SweetGram.ipa"
           echo "ipa_path=$OUTPUT_PATH/SweetGram.ipa" >> "$GITHUB_OUTPUT"
 
-          # Collect dSYMs — Bazel always generates them in release mode
-          mkdir -p "$OUTPUT_PATH/DSYMs"
-          for f in $(find "$GITHUB_WORKSPACE/bazel-out" -name '*.dSYM' -type d 2>/dev/null); do
-            cp -R "$f" "$OUTPUT_PATH/DSYMs/" 2>/dev/null || true
+          # Collect dSYMs from bazel-bin (where Bazel places them)
+          DSYM_DIR="$OUTPUT_PATH/DSYMs"
+          mkdir -p "$DSYM_DIR"
+          for f in $(find "$GITHUB_WORKSPACE/bazel-bin/Telegram" -name '*.dSYM' -type d 2>/dev/null); do
+            cp -R "$f" "$DSYM_DIR/" 2>/dev/null || true
           done
-          if [ -d "$OUTPUT_PATH/DSYMs" ] && [ "$(ls -A "$OUTPUT_PATH/DSYMs" 2>/dev/null)" ]; then
+          if [ -d "$DSYM_DIR" ] && [ "$(ls -A "$DSYM_DIR" 2>/dev/null)" ]; then
             cd "$OUTPUT_PATH" && zip -r "SweetGram.dSYMs.zip" DSYMs -q
             echo "dsyms_path=$OUTPUT_PATH/SweetGram.dSYMs.zip" >> "$GITHUB_OUTPUT"
             ls -lah "$OUTPUT_PATH/SweetGram.dSYMs.zip"
           else
-            echo "No dSYMs found (optional)"
+            echo "No dSYMs found"
           fi
 
           ls -lah "$OUTPUT_PATH"
@@ -136,21 +133,21 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.BAZEL_CACHE_DIR }}
-          key: ${{ steps.cache-bazel-restore.outputs.cache-primary-key }}
+          key: bazel-disk-cache-macos26-xcode262-${{ env.CACHE_VERSION }}-${{ github.run_id }}
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: SweetGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
-          path: $GITHUB_WORKSPACE/build/artifacts/SweetGram.ipa
+          path: ${{ runner.temp }}/build-artifacts/SweetGram.ipa
           if-no-files-found: error
           retention-days: 14
 
       - name: Upload dSYMs artifact
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: SweetGram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}-dSYMs
-          path: $GITHUB_WORKSPACE/build/artifacts/SweetGram.dSYMs.zip
+          path: ${{ runner.temp }}/build-artifacts/SweetGram.dSYMs.zip
           if-no-files-found: warn
           retention-days: 14
