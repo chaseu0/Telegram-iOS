@@ -549,7 +549,7 @@ public final class SharedAccountContextImpl: SharedAccountContext {
             }
         })
         self.initSGIAP(isMainApp: applicationBindings.isMainApp)
-        SweetGramBootstrapHook.bootstrapIfNeeded(context: self)
+        SweetGramBootstrapHook.bootstrapIfNeeded()
         //
         
         let _ = self.contactDataManager?.personNameDisplayOrder().start(next: { order in

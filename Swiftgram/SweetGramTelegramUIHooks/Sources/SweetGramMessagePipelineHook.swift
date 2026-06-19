@@ -3,7 +3,7 @@ import Postbox
 import TelegramCore
 import TelegramStringFormatting
 import AccountContext
-import BuildConfig
+import ChatHistoryEntry
 import SweetGramIntegration
 import SweetGramCore
 

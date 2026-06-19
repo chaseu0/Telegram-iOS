@@ -39,6 +39,7 @@ import TextFormat
 import ChatNewThreadInfoItem
 import PhoneNumberFormat
 import Postbox
+import BuildConfig
 
 struct ChatTopVisibleMessageRange: Equatable {
     var lowerBound: MessageIndex
