@@ -99,22 +99,23 @@ jobs:
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
 
-          shopt -s nullglob
-          IPA_FILES=(bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/Telegram.ipa)
-          if [ ${#IPA_FILES[@]} -eq 0 ]; then
-            echo "No Telegram.ipa found under bazel-out; listing candidates:"
-            find bazel-out -name '*.ipa' -print || true
+          # Swiftgram fork: Make.py builds //Telegram:Swiftgram -> bazel-bin/Telegram/Swiftgram.ipa
+          IPA_SRC="$SOURCE_DIR/bazel-bin/Telegram/Swiftgram.ipa"
+          if [ ! -f "$IPA_SRC" ]; then
+            echo "No Swiftgram.ipa at $IPA_SRC; listing candidates:"
+            find bazel-bin bazel-out -name '*.ipa' -print 2>/dev/null || true
             exit 1
           fi
-          cp "${IPA_FILES[0]}" "$OUTPUT_PATH/Telegram.ipa"
-          echo "ipa_path=$OUTPUT_PATH/Telegram.ipa" >> "$GITHUB_OUTPUT"
+          cp "$IPA_SRC" "$OUTPUT_PATH/Swiftgram.ipa"
+          echo "ipa_path=$OUTPUT_PATH/Swiftgram.ipa" >> "$GITHUB_OUTPUT"
 
           mkdir -p "$SOURCE_DIR/build/DSYMs"
-          for f in bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/*.dSYM; do
+          shopt -s nullglob
+          for f in "$SOURCE_DIR"/bazel-bin/Telegram/*.dSYM; do
             cp -R "$f" "$SOURCE_DIR/build/DSYMs/"
           done
           if [ -d "$SOURCE_DIR/build/DSYMs" ] && [ "$(ls -A "$SOURCE_DIR/build/DSYMs")" ]; then
-            (cd "$SOURCE_DIR/build" && zip -r "$OUTPUT_PATH/Telegram.DSYMs.zip" DSYMs >/dev/null)
+            (cd "$SOURCE_DIR/build" && zip -r "$OUTPUT_PATH/Swiftgram.DSYMs.zip" DSYMs >/dev/null)
           fi
 
           ls -lah "$OUTPUT_PATH"
@@ -122,8 +123,8 @@ jobs:
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Telegram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
-          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          name: Swiftgram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: /Users/Shared/telegram-ios/build/artifacts/Swiftgram.ipa
           if-no-files-found: error
           retention-days: 14
 
@@ -131,7 +132,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Telegram-DSYMs-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
-          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
+          name: Swiftgram-DSYMs-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: /Users/Shared/telegram-ios/build/artifacts/Swiftgram.DSYMs.zip
           if-no-files-found: ignore
           retention-days: 14
