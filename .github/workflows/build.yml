@@ -89,13 +89,12 @@ jobs:
 
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
 
+          BAZEL_EXTRA="--experimental_worker_multiplex_workers --modify_execution_info=SwiftCompile=+worker-key:Sandbox=off --features=swift.cacheable_swiftmodules"
           python3 -u build-system/Make/Make.py \
             --cacheDir="${{ env.BAZEL_CACHE_DIR }}" \
             --overrideXcodeVersion \
             --overrideBazelVersion \
-            --bazelArguments="--experimental_worker_multiplex_workers \
---modify_execution_info=SwiftCompile=+worker-key:Sandbox=off \
---features=swift.cacheable_swiftmodules" \
+            --bazelArguments="$BAZEL_EXTRA" \
             build \
             --configurationPath="build-system/appstore-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
