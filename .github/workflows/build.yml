@@ -16,7 +16,7 @@ permissions:
 
 env:
   BAZEL_CACHE_DIR: /Users/Shared/bazel-cache
-  CACHE_VERSION: v2
+  CACHE_VERSION: v3
 
 jobs:
   build:
@@ -93,6 +93,9 @@ jobs:
             --cacheDir="${{ env.BAZEL_CACHE_DIR }}" \
             --overrideXcodeVersion \
             --overrideBazelVersion \
+            --bazelArguments="--experimental_worker_multiplex_workers \
+--modify_execution_info=SwiftCompile=+worker-key:Sandbox=off \
+--features=swift.cacheable_swiftmodules" \
             build \
             --configurationPath="build-system/appstore-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
@@ -105,7 +108,6 @@ jobs:
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
 
-          # Collect IPA from the workspace root
           IPA_SRC="$GITHUB_WORKSPACE/bazel-bin/Telegram/Swiftgram.ipa"
           if [ ! -f "$IPA_SRC" ]; then
             echo "No Swiftgram.ipa at $IPA_SRC; searching..."
@@ -115,7 +117,7 @@ jobs:
           cp "$IPA_SRC" "$OUTPUT_PATH/SweetGram.ipa"
           echo "ipa_path=$OUTPUT_PATH/SweetGram.ipa" >> "$GITHUB_OUTPUT"
 
-          # Collect dSYMs from bazel-bin (where Bazel places them)
+          # Collect dSYMs from bazel-bin
           DSYM_DIR="$OUTPUT_PATH/DSYMs"
           mkdir -p "$DSYM_DIR"
           for f in $(find "$GITHUB_WORKSPACE/bazel-bin/Telegram" -name '*.dSYM' -type d 2>/dev/null); do
