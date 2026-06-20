@@ -54,7 +54,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.BAZEL_CACHE_DIR }}
-          key: bazel-disk-cache-macos26-xcode262-${{ env.CACHE_VERSION }}
+          key: bazel-disk-cache-macos26-xcode262-${{ env.CACHE_VERSION }}-${{ github.run_id }}
+          restore-keys: |
+            bazel-disk-cache-macos26-xcode262-${{ env.CACHE_VERSION }}-
+            bazel-disk-cache-macos26-xcode262-${{ env.CACHE_VERSION }}
 
       - name: Prepare cache directory
         run: |
